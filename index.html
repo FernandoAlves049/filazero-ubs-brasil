@@ -13,13 +13,44 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>
 const $=id=>document.getElementById(id),escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 "AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO".split(" ").forEach(uf=>{$("uf").add(new Option(uf,uf))});$("uf").value="GO";
-const map=L.map("map").setView([-16.7,-49.2],6);L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap contributors"}).addTo(map);const layer=L.layerGroup().addTo(map);let units=[];
+const map=L.map("map").setView([-16.7,-49.2],6);L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap contributors"}).addTo(map);const layer=L.layerGroup().addTo(map);let units=[];let sourceLabel="OpenStreetMap";
 document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{document.querySelectorAll("[data-tab]").forEach(t=>t.classList.toggle("on",t===b));for(const id of ["mapa","fila","painel"])$(id).classList.toggle("hide",b.dataset.tab!==id);if(b.dataset.tab==="mapa")setTimeout(()=>map.invalidateSize(),120);render()});
 const start=()=>({patients:[{name:"Paciente A",priority:2,days:4,done:false},{name:"Paciente B",priority:1,days:7,done:false},{name:"Paciente C",priority:3,days:3,done:false}],slots:[],log:[]});
 let data;try{data=JSON.parse(localStorage.getItem("filazero-pages-v1"))||start()}catch{data=start()}const save=()=>localStorage.setItem("filazero-pages-v1",JSON.stringify(data));
 function render(){const done=data.slots.filter(x=>x.done).length;$("available").textContent=data.slots.length-done;$("waiting").textContent=data.patients.filter(x=>!x.done).length;$("confirmed").textContent=done;$("created").textContent=data.slots.length;$("reused").textContent=done;$("rate").textContent=data.slots.length?Math.round(done/data.slots.length*100)+"%":"0%";$("patients").innerHTML=data.patients.map(p=>'<div class="cardrow"><b>'+escapeHtml(p.name)+'</b><small>Prioridade ilustrativa: '+p.priority+' | '+p.days+' dias de espera | '+(p.done?"Confirmado":"Aguardando")+'</small></div>').join("");$("slots").innerHTML=data.slots.map((s,i)=>'<div class="cardrow"><b>'+escapeHtml(s.unit)+'</b><small>'+escapeHtml(s.date)+' às '+escapeHtml(s.time)+' | '+(s.done?"Confirmada para "+escapeHtml(s.patient):"Liberada")+'</small>'+(s.done?"":'<button class="primary" data-confirm="'+i+'">Convocar próximo paciente</button>')+'</div>').join("")||'<p class="muted">Ainda não há vagas liberadas.</p>';$("log").innerHTML=data.log.slice().reverse().map(t=>'<div class="cardrow">'+escapeHtml(t)+'</div>').join("")||'<p class="muted">Nenhuma movimentação.</p>';document.querySelectorAll("[data-confirm]").forEach(b=>b.onclick=()=>{const s=data.slots[Number(b.dataset.confirm)],p=data.patients.filter(x=>!x.done).sort((a,b)=>a.priority-b.priority||b.days-a.days)[0];if(!p){alert("Não há mais pacientes fictícios aguardando.");return}p.done=true;s.done=true;s.patient=p.name;data.log.push("Vaga "+s.date+" "+s.time+" atribuída (simulação) a "+p.name);save();render()})}
 $("date").value=new Date().toLocaleDateString("en-CA");$("cancel").onclick=()=>{if(!$("date").value||!$("time").value)return alert("Informe data e horário.");data.slots.push({unit:$("selectedunit").selectedOptions[0].textContent,date:$("date").value,time:$("time").value,done:false});data.log.push("Vaga liberada para "+$("date").value+" às "+$("time").value);save();render()};$("reset").onclick=()=>{if(confirm("Reiniciar dados fictícios?")){data=start();save();render()}};render();
 async function search(){const city=$("city").value.trim(),uf=$("uf").value;if(!city)return alert("Digite uma cidade.");$("search").disabled=true;$("status").textContent="Buscando município...";layer.clearLayers();$("units").innerHTML="";$("count").textContent="0";try{
+// Preferir base oficial CNES materializada pelo workflow do GitHub Actions.
+try{
+ const r=await fetch("./dados/"+uf+".json",{cache:"no-cache"});
+ if(r.ok){
+  const all=await r.json();
+  const normalizeName=t=>String(t||"").normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase().trim();
+  const selected=all.filter(u=>normalizeName(u.city)===normalizeName(city));
+  if(selected.length){
+    sourceLabel="CNES / Ministério da Saúde";
+    units=selected;
+    $("count").textContent=selected.length;
+    $("status").textContent=selected.length+" UBS oficiais identificadas em "+city+" ("+uf+"). Unidades sem coordenadas aparecem apenas na lista.";
+    const select=$("selectedunit");select.innerHTML='<option>UBS demonstrativa</option>';
+    const markers=[];
+    selected.forEach(u=>{
+      select.add(new Option(u.name,u.name));
+      const button=document.createElement("button");button.className="unit";
+      button.innerHTML="<strong>"+escapeHtml(u.name)+"</strong><small>"+escapeHtml([u.address,u.neighborhood].filter(Boolean).join(" • ")||"Endereço não informado")+"<br>CNES: "+escapeHtml(u.cnes||"não informado")+" • Fonte: CNES</small>";
+      if(Number.isFinite(u.lat)&&Number.isFinite(u.lon)){
+       const marker=L.marker([u.lat,u.lon]).addTo(layer).bindPopup("<strong>"+escapeHtml(u.name)+"</strong><br>"+escapeHtml(u.address||"")+"<br>CNES: "+escapeHtml(u.cnes||"não informado")+"<br>Fonte: CNES");
+       markers.push(marker);button.onclick=()=>{map.setView([u.lat,u.lon],15);marker.openPopup();select.value=u.name};
+      }else{button.onclick=()=>{select.value=u.name}};
+      $("units").appendChild(button);
+    });
+    if(markers.length)map.fitBounds(L.featureGroup(markers).getBounds().pad(.15),{maxZoom:14});
+    else $("status").textContent+=" Esta base não informa coordenadas para as unidades retornadas.";
+    return;
+  }
+ }
+}catch(error){console.warn("CNES estático ainda indisponível",error)}
+$("status").textContent="Base CNES ainda não disponível nesta cidade. Tentando mapa comunitário...";
 const geo=await fetch("https://nominatim.openstreetmap.org/search?"+new URLSearchParams({city,state:uf,country:"Brasil",countrycodes:"br",format:"json",limit:"1"}));if(!geo.ok)throw Error("Falha no serviço de localização.");const found=await geo.json();if(!found.length)throw Error("Cidade não encontrada.");const g=found[0],box=g.boundingbox.map(Number),[s,n,w,e]=box;
 if(n-s>1.5||e-w>1.5)throw Error("Área extensa demais para consulta automática. Tente outra cidade.");
 map.setView([Number(g.lat),Number(g.lon)],12);$("status").textContent="Buscando UBS no OpenStreetMap...";
