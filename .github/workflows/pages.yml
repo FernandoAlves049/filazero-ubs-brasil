@@ -60,3 +60,14 @@ jobs:
           path: _site
       - id: deployment
         uses: actions/deploy-pages@v4
+      - name: Testar endereço público após implantação
+        env:
+          TEST_URL: ${{ steps.deployment.outputs.page_url }}
+          EVIDENCE_DIR: docs/evidencias/publicado
+        run: npm test
+      - name: Preservar evidências do endereço público
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidencias-site-publicado
+          path: docs/evidencias/publicado/

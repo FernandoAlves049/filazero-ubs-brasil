@@ -20,14 +20,16 @@ fs.mkdirSync(out,{recursive:true});
    for(const [city,uf] of [['Morrinhos','GO'],['Goiania','GO'],['Caldas Novas','GO'],['Brasilia','DF'],['Sao Paulo','SP']]) {
     await page.locator('#city').fill(city); await page.locator('#uf').selectOption(uf);await page.locator('#search').click();
     await page.waitForFunction(()=>!document.querySelector('#search').disabled);
+    await page.waitForFunction(()=>map.loaded() && !map.isMoving(), null, {timeout:60000});
     const state=await page.evaluate(()=>({count:Number(document.querySelector('#count').textContent),cards:document.querySelectorAll('.unit').length,markers:markers.length,status:document.querySelector('#status').textContent,overflow:document.documentElement.scrollWidth>innerWidth,mapLoaded:map.loaded()}));
-    assert(state.count>0,state.status); assert.equal(state.count,state.cards);assert(state.markers>0);assert.equal(state.overflow,false);
+    assert(state.count>0,state.status); assert.equal(state.count,state.cards);assert(state.markers>0);assert.equal(state.overflow,false);assert.equal(state.mapLoaded,true);
     const official=await page.evaluate(async uf=>{const rows=await(await fetch(`./dados/${uf}.json`)).json();const name=document.querySelector('#city').value;return rows.filter(r=>r.city===name);},uf);
     assert.equal(state.count,official.length);assert.equal(state.markers,official.filter(r=>r.lat!==null).length);
     result.cities.push({city,uf,...state});
+    await page.screenshot({path:`${out}/${profile}-${city.replaceAll(' ','-').toLowerCase()}.png`,fullPage:true});
     if(city==='Morrinhos') {
-     await page.locator('.unit').first().click();
-     await page.screenshot({path:`${out}/${profile}-morrinhos.png`,fullPage:true});
+     await page.locator('.unit').filter({hasText:'CENTRO DE SAUDE DE MORRINHOS'}).click();
+     assert.match(await page.locator('#selectedunit').inputValue(), /2382083/);
     }
    }
    await page.locator('#city').fill('Cidade inexistente xyz');await page.locator('#search').click();await page.waitForFunction(()=>!document.querySelector('#search').disabled);

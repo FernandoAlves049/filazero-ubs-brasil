@@ -38,4 +38,10 @@ Limitações: malha simplificada pode excluir pontos próximos da fronteira; coo
 
 ## Estado da publicação
 
-A preencher após observar as execuções remotas e testar o endereço público. Um commit enviado não representa conclusão.
+Importação concluída com sucesso: [run 39607255744](https://github.com/FernandoAlves049/filazero-ubs-brasil/actions/runs/39607255744), commit do importador `d82f579e3689e96389f31e3ed70c13f099fb5c2a`, dados gerados `30d29150dac2287c18e18b1488d753c3a1233912`.
+
+Interface publicada pelo [run 39607451516](https://github.com/FernandoAlves049/filazero-ubs-brasil/actions/runs/39607451516), commit `31a67e07550ed0b952a94f631a82248ff61de2af`. Testes Chromium desktop/mobile passaram com zero exceções JavaScript e sem requisições de escrita. HTTP 200 confirmado para página, metadados, relatório e capturas.
+
+As primeiras capturas foram obtidas durante movimento do mapa; o teste foi reforçado para esperar todos os tiles e o fim do movimento em cada cidade, além de repetir toda a suíte no endereço público após deploy. Os resultados dessa rodada ficam no artefato `evidencias-site-publicado` da execução correspondente.
+
+O navegador remoto da sessão possui WebGL desabilitado: usado para comprovar degradação graciosa, lista e simulação. A renderização de mapa foi testada em Chromium no Actions com renderização por software. Não foi feito teste em aparelho físico.
