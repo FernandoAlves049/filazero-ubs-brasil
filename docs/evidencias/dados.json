@@ -1,0 +1,47 @@
+{
+  "imported_at": "2026-10-21T13:21:26.408560+00:00",
+  "sha256": "3de65c355824d6d1bcb54f3d91ec0a3113f219a628c5a2e11807b0e051264a6e",
+  "total": 48024,
+  "cities": [
+    {
+      "city": "Morrinhos",
+      "uf": "GO",
+      "count": 16,
+      "mapped": 15,
+      "list_only": 1,
+      "example_cnes": "7891954"
+    },
+    {
+      "city": "Goiânia",
+      "uf": "GO",
+      "count": 107,
+      "mapped": 92,
+      "list_only": 15,
+      "example_cnes": "8005532"
+    },
+    {
+      "city": "Caldas Novas",
+      "uf": "GO",
+      "count": 22,
+      "mapped": 22,
+      "list_only": 0,
+      "example_cnes": "5728193"
+    },
+    {
+      "city": "Brasília",
+      "uf": "DF",
+      "count": 212,
+      "mapped": 200,
+      "list_only": 12,
+      "example_cnes": "6684181"
+    },
+    {
+      "city": "São Paulo",
+      "uf": "SP",
+      "count": 652,
+      "mapped": 538,
+      "list_only": 114,
+      "example_cnes": "5576989"
+    }
+  ]
+}
