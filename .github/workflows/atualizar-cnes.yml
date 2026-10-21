@@ -2,13 +2,18 @@ name: Atualizar dados oficiais de UBS (CNES)
 on:
   workflow_dispatch:
   schedule:
-    - cron: "18 7 * * 3"
+    - cron: '18 7 * * 3'
   push:
+    branches: [main]
     paths:
-      - "scripts/importar_cnes.py"
-      - ".github/workflows/atualizar-cnes.yml"
+      - 'scripts/**'
+      - 'tests/test_importar_cnes.py'
+      - '.github/workflows/atualizar-cnes.yml'
 permissions:
   contents: write
+concurrency:
+  group: importar-cnes
+  cancel-in-progress: false
 jobs:
   atualizar:
     runs-on: ubuntu-latest
@@ -16,18 +21,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          persist-credentials: true
+          ref: main
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Testar normalização e rejeição de dados inválidos
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
       - name: Baixar e validar arquivo nacional do Ministério da Saúde
         run: python scripts/importar_cnes.py
+      - name: Validar cobertura e cinco municípios de referência
+        run: python scripts/validar_dados.py
+      - name: Preservar relatório da importação
+        uses: actions/upload-artifact@v4
+        with:
+          name: cnes-validado
+          path: |
+            dados/meta.json
+            docs/evidencias/dados.json
       - name: Publicar arquivos gerados na branch main
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add dados/
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add dados/ docs/evidencias/dados.json
           if ! git diff --cached --quiet; then
-            git commit -m "data: atualizar unidades oficiais do CNES"
-            git push
+            git commit -m 'data: atualizar CNES validado e evidências'
+            git pull --rebase origin main
+            git push origin HEAD:main
           fi

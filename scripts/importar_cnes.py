@@ -1,91 +1,198 @@
 #!/usr/bin/env python3
-"""Converte o ZIP oficial de UBS do CNES em JSONs estáticos por UF para GitHub Pages.
-Não contém nem consulta dados pessoais de pacientes.
-"""
-import json, zipfile, io, csv, re, unicodedata, urllib.request, pathlib, datetime, os
-CATALOG="https://dadosabertos.saude.gov.br/api/3/action/package_show?id=unidades-basicas-de-saude-ubs"
+"""Importação oficial, sem pacientes; publicação somente após validação completa."""
+import argparse
+import collections
+import datetime
+import gzip
+import hashlib
+import io
+import json
+import math
+import pathlib
+import re
+import shutil
+import tempfile
+import time
+import unicodedata
+import urllib.error
+import urllib.request
+import zipfile
+
+PORTAL = 'https://dadosabertos.saude.gov.br/dataset/unidades-basicas-de-saude-ubs'
+SOURCE = 'https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/CNES/Unidades_Basicas_Saude-UBS_json.zip'
+MUNICIPALITIES = 'https://servicodados.ibge.gov.br/api/v1/localidades/municipios'
+MESH = 'https://servicodados.ibge.gov.br/api/v3/malhas/paises/BR?formato=application/vnd.geo+json&qualidade=minima&intrarregiao=municipio'
+UF_CODES = dict(zip('11 12 13 14 15 16 17 21 22 23 24 25 26 27 28 29 31 32 33 35 41 42 43 50 51 52 53'.split(), 'RO AC AM RR PA AP TO MA PI CE RN PB PE AL SE BA MG ES RJ SP PR SC RS MS MT GO DF'.split()))
+
+
+def download(url):
+    for attempt in range(3):
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'FilaZero-UBS/2.0', 'Accept-Encoding': 'identity'})
+            with urllib.request.urlopen(req, timeout=120) as response:
+                raw = response.read(100_000_001)
+                if len(raw) > 100_000_000:
+                    raise ValueError('Download excedeu 100 MB')
+                return gzip.decompress(raw) if raw.startswith(b'\x1f\x8b') else raw
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            print(f'Tentativa {attempt + 1}/3: {url}: {exc}', flush=True)
+            if isinstance(exc, urllib.error.HTTPError) and exc.code in (400, 401, 403, 404):
+                raise
+            if attempt == 2:
+                raise
+            time.sleep(2 ** attempt)
+
+
 def find_source():
-    req=urllib.request.Request(CATALOG,headers={"User-Agent":"FilaZero-UBS/1.0"})
-    with urllib.request.urlopen(req,timeout=45) as response:
-        payload=json.load(response)
-    resources=payload.get("result",{}).get("resources",[])
-    choices=[]
-    for item in resources:
-        url=item.get("url","")
-        fmt=str(item.get("format") or "").lower()
-        if url and ("json" in fmt or url.lower().endswith(".json.zip")):
-            choices.append((item.get("last_modified") or item.get("created") or "",url))
-    if not choices: raise ValueError("Nenhum recurso JSON disponível no catálogo oficial")
-    choices.sort(reverse=True)
-    print("Recurso oficial selecionado:",choices[0][1],flush=True)
-    return choices[0][1]
-OUT=pathlib.Path("dados"); OUT.mkdir(exist_ok=True)
-VALID={"AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"}
-def norm(s):
-    return re.sub(r"[^a-z0-9]","",unicodedata.normalize("NFKD",str(s)).encode("ascii","ignore").decode().lower())
-def val(row,*keys):
-    indexed={norm(k):v for k,v in row.items()}
-    for k in keys:
-        v=indexed.get(norm(k))
-        if v not in ("",None,"NULL","null","NaN"): return str(v).strip()
-    return ""
-def items_from_text(content,name):
-    content=content.lstrip("\ufeff\n ")
-    if name.endswith(".csv"):
-        sample=content[:10000]; dialect=csv.Sniffer().sniff(sample,delimiters=";,\t")
-        yield from csv.DictReader(io.StringIO(content), dialect=dialect)
-        return
+    # O portal é Next.js, não expõe CKAN em /api/3/action (404).
     try:
-        obj=json.loads(content)
-        if isinstance(obj,list): yield from obj
-        elif isinstance(obj,dict):
-            for key in ("data","dados","results","items","records","estabelecimentos","ubs"):
-                v=obj.get(key)
-                if isinstance(v,list): yield from v; return
-            yield obj
-    except json.JSONDecodeError:
-        for line in content.splitlines():
-            try:
-                row=json.loads(line)
-                if isinstance(row,dict): yield row
-            except json.JSONDecodeError: pass
-def coord(row,*keys):
-    text=val(row,*keys).replace(",",".")
-    try:return float(text)
-    except:return None
-def normalize(row):
-    if not isinstance(row,dict):return
-    uf=val(row,"UF","SG_UF","SIGLA_UF","SIGLA_ESTADO","NO_UF").upper()
-    city=val(row,"MUNICIPIO","NO_MUNICIPIO","NOME_MUNICIPIO","CIDADE","MUNICÍPIO")
-    if uf not in VALID or not city:return
-    latitude=coord(row,"NU_LATITUDE","LATITUDE","VL_LATITUDE","CO_LATITUDE","LAT")
-    longitude=coord(row,"NU_LONGITUDE","LONGITUDE","VL_LONGITUDE","CO_LONGITUDE","LON")
-    if latitude is not None and not -35<=latitude<=6:latitude=None
-    if longitude is not None and not -75<=longitude<=-30:longitude=None
-    cnes=val(row,"CNES","CO_CNES","CODIGO_CNES","COD_CNES")
-    name=val(row,"NO_FANTASIA","NOME_FANTASIA","NOME_ESTABELECIMENTO","NO_ESTABELECIMENTO","NOME","ESTABELECIMENTO")
-    if not name:return
-    address=" ".join(filter(None,[val(row,"NO_LOGRADOURO","LOGRADOURO","ENDERECO"),val(row,"NU_ENDERECO","NUMERO","NUMERO_ENDERECO")]))
-    return dict(id=cnes or name,name=name,city=city,uf=uf,lat=latitude,lon=longitude,cnes=cnes,address=address,neighborhood=val(row,"NO_BAIRRO","BAIRRO"),phone=val(row,"NU_TELEFONE","TELEFONE","TELEFONE1"),source="CNES")
+        html = download(PORTAL).decode('utf-8')
+        match = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.S)
+        resources = json.loads(match[1])['props']['pageProps']['resources']
+        choices = [r for r in resources if r.get('format', '').upper() == 'JSON' and r.get('url', '').startswith('https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/CNES/')]
+        chosen = max(choices, key=lambda r: r.get('last_modified') or '')
+        return chosen['url'], chosen.get('last_modified'), 'portal'
+    except (ValueError, KeyError, TypeError, urllib.error.URLError, OSError) as exc:
+        print(f'AVISO: catálogo indisponível ({exc}); usando recurso oficial conhecido: {SOURCE}', flush=True)
+        return SOURCE, None, 'recurso oficial fixo; catálogo indisponível'
+
+
+def norm(value):
+    return re.sub(r'[^a-z0-9]', '', unicodedata.normalize('NFKD', str(value)).encode('ascii', 'ignore').decode().lower())
+
+
+def clean(value):
+    return '' if value is None else ' '.join(str(value).split())
+
+
+def number(value):
+    try:
+        result = float(clean(value).replace(',', '.'))
+        return result if math.isfinite(result) else None
+    except (ValueError, TypeError):
+        return None
+
+
+def municipality_index(rows):
+    result = {}
+    for row in rows:
+        code = str(row['id'])
+        uf = UF_CODES[code[:2]]
+        result[code[:6]] = dict(id=code, name=row['nome'], uf=uf)
+    if len(result) < 5500:
+        raise ValueError('Catálogo IBGE incompleto')
+    return result
+
+
+def ring_contains(x, y, ring):
+    inside = False
+    for a, b in zip(ring, ring[1:] + ring[:1]):
+        if (a[1] > y) != (b[1] > y) and x < (b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0]:
+            inside = not inside
+    return inside
+
+
+def contains(geometry, lon, lat):
+    polygons = [geometry['coordinates']] if geometry['type'] == 'Polygon' else geometry['coordinates']
+    return any(ring_contains(lon, lat, p[0]) and not any(ring_contains(lon, lat, hole) for hole in p[1:]) for p in polygons)
+
+
+def normalize(row, municipalities, geometries):
+    code = clean(row.get('IBGE'))[:6]
+    # CNES ainda traz o código legado 530040 (Ceilândia), no DF.
+    original_code = code
+    if code == '530040' and clean(row.get('UF')) == '53':
+        code = '530010'
+    city = municipalities.get(code)
+    if not city:
+        raise ValueError(f'Município IBGE desconhecido: {code!r}')
+    uf = UF_CODES.get(clean(row.get('UF')), clean(row.get('UF')).upper())
+    if uf != city['uf']:
+        raise ValueError(f'UF divergente para {code}: {uf}')
+    cnes = clean(row.get('CNES')).zfill(7)
+    if not re.fullmatch(r'\d{7}', cnes) or cnes == '0000000':
+        raise ValueError('CNES/nome inválido')
+    lat, lon = number(row.get('LATITUDE')), number(row.get('LONGITUDE'))
+    status = 'ausente'
+    if lat is not None and lon is not None:
+        status = 'fora_do_municipio'
+        if -34 <= lat <= 6 and -74 <= lon <= -28:
+            geometry = geometries.get(city['id'])
+            if geometry and contains(geometry, lon, lat):
+                status = 'validada_malha_ibge'
+    if status != 'validada_malha_ibge':
+        lat = lon = None
+    return dict(id=cnes, cnes=cnes, name=clean(row['NOME']) or f'Estabelecimento CNES {cnes} (nome não informado)', city=city['name'], city_id=city['id'], source_city_code=original_code, uf=uf,
+                address=clean(row.get('LOGRADOURO')), neighborhood=clean(row.get('BAIRRO')),
+                lat=lat, lon=lon, coordinate_status=status, source='CNES')
+
+
+def build(raw, municipalities_raw, mesh_raw, output, source, modified, discovery):
+    municipalities = municipality_index(json.loads(municipalities_raw))
+    mesh = json.loads(mesh_raw)
+    geometries = {str(f['properties']['codarea']): f['geometry'] for f in mesh['features']}
+    if len(geometries) < 5500:
+        raise ValueError('Malha municipal incompleta')
+    with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+        names = [n for n in archive.namelist() if n.lower().endswith('.json')]
+        if len(names) != 1 or archive.getinfo(names[0]).file_size > 100_000_000:
+            raise ValueError('ZIP oficial com estrutura inesperada')
+        records = json.loads(archive.read(names[0]).decode('utf-8-sig'))
+    required = {'CNES', 'UF', 'IBGE', 'NOME', 'LOGRADOURO', 'BAIRRO', 'LATITUDE', 'LONGITUDE'}
+    if not isinstance(records, list) or not records or not required <= records[0].keys():
+        raise ValueError('Esquema oficial mudou; publicação interrompida')
+    by_uf = {uf: [] for uf in sorted(UF_CODES.values())}
+    seen, statuses = {}, collections.Counter()
+    for row in records:
+        item = normalize(row, municipalities, geometries)
+        if item['cnes'] in seen:
+            if seen[item['cnes']] != item:
+                raise ValueError(f"CNES duplicado conflitante: {item['cnes']}")
+            continue
+        seen[item['cnes']] = item
+        by_uf[item['uf']].append(item)
+        statuses[item['coordinate_status']] += 1
+    total = len(seen)
+    if total < 30000 or any(not rows for rows in by_uf.values()):
+        raise ValueError(f'Base incompleta: {total} unidades')
+    previous = output / 'meta.json'
+    if previous.exists() and total < json.loads(previous.read_text())['count'] * .85:
+        raise ValueError('Queda superior a 15% na base; revisão humana necessária')
+    counts = collections.Counter(item['city_id'] for item in seen.values())
+    meta = dict(source='CNES/Ministério da Saúde', source_url=source, catalog_url=PORTAL,
+                source_updated_at=modified, discovery=discovery,
+                updated_at=datetime.datetime.now(datetime.timezone.utc).isoformat(), count=total,
+                sha256=hashlib.sha256(raw).hexdigest(), source_fields=sorted(required),
+                per_state={uf: len(rows) for uf, rows in by_uf.items()}, coordinates=dict(statuses),
+                municipality_source=MUNICIPALITIES, geometry_source=MESH,
+                coordinate_policy='Coordenadas originais CNES dentro da malha municipal simplificada IBGE; sem geocodificação ou posições estimadas.')
+    # Todos os registros e arquivos são preparados antes de substituir a saída.
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=output.parent) as tmp:
+        stage = pathlib.Path(tmp)
+        for uf, rows in by_uf.items():
+            rows.sort(key=lambda r: (r['city'], r['name'], r['cnes']))
+            (stage / f'{uf}.json').write_text(json.dumps(rows, ensure_ascii=False, separators=(',', ':'), allow_nan=False), encoding='utf-8')
+        cities = [dict(**c, count=counts[c['id']]) for c in municipalities.values()]
+        (stage / 'municipios.json').write_text(json.dumps(cities, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
+        (stage / 'meta.json').write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding='utf-8')
+        output.mkdir(exist_ok=True)
+        for file in stage.iterdir():
+            shutil.copy2(file, output / file.name)
+    return meta
+
+
 def main():
-    src=find_source()
-    req=urllib.request.Request(src,headers={"User-Agent":"FilaZero-UBS/1.0 (dados publicos)"})
-    with urllib.request.urlopen(req,timeout=180) as res: raw=res.read()
-    zs=zipfile.ZipFile(io.BytesIO(raw))
-    by_uf={uf:[] for uf in VALID}; seen=set(); total=0
-    for name in zs.namelist():
-        if not name.lower().endswith((".json",".jsonl",".ndjson",".csv")):continue
-        content=zs.read(name).decode("utf-8-sig",errors="replace")
-        for row in items_from_text(content,name.lower()):
-            item=normalize(row)
-            if not item:continue
-            key=(item["uf"],item["city"],item["cnes"] or item["name"])
-            if key in seen:continue
-            seen.add(key); by_uf[item["uf"]].append(item);total+=1
-    if total<1000: raise ValueError(f"Arquivo oficial resultou em apenas {total} registros; verificar esquema antes de publicar")
-    for uf, rows in by_uf.items():
-        (OUT/(uf+".json")).write_text(json.dumps(rows,ensure_ascii=False,separators=(",",":")),encoding="utf-8")
-    meta={"source":"CNES/Ministério da Saúde","updated_at":datetime.datetime.now(datetime.timezone.utc).isoformat(),"count":total,"per_state":{k:len(v) for k,v in by_uf.items()}}
-    (OUT/"meta.json").write_text(json.dumps(meta,ensure_ascii=False,indent=2),encoding="utf-8")
-    print(meta)
-if __name__=="__main__":main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--output', type=pathlib.Path, default=pathlib.Path('dados'))
+    args = parser.parse_args()
+    source, modified, discovery = find_source()
+    print('Recurso oficial:', source, flush=True)
+    raw = download(source)
+    municipalities = download(MUNICIPALITIES)
+    mesh = download(MESH)
+    print(json.dumps(build(raw, municipalities, mesh, args.output, source, modified, discovery), ensure_ascii=False, indent=2))
+
+
+if __name__ == '__main__':
+    main()
