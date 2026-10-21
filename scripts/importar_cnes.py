@@ -3,7 +3,22 @@
 Não contém nem consulta dados pessoais de pacientes.
 """
 import json, zipfile, io, csv, re, unicodedata, urllib.request, pathlib, datetime, os
-SRC="https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/CNES/Unidades_Basicas_Saude-UBS_json.zip"
+CATALOG="https://dadosabertos.saude.gov.br/api/3/action/package_show?id=unidades-basicas-de-saude-ubs"
+def find_source():
+    req=urllib.request.Request(CATALOG,headers={"User-Agent":"FilaZero-UBS/1.0"})
+    with urllib.request.urlopen(req,timeout=45) as response:
+        payload=json.load(response)
+    resources=payload.get("result",{}).get("resources",[])
+    choices=[]
+    for item in resources:
+        url=item.get("url","")
+        fmt=str(item.get("format") or "").lower()
+        if url and ("json" in fmt or url.lower().endswith(".json.zip")):
+            choices.append((item.get("last_modified") or item.get("created") or "",url))
+    if not choices: raise ValueError("Nenhum recurso JSON disponível no catálogo oficial")
+    choices.sort(reverse=True)
+    print("Recurso oficial selecionado:",choices[0][1],flush=True)
+    return choices[0][1]
 OUT=pathlib.Path("dados"); OUT.mkdir(exist_ok=True)
 VALID={"AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"}
 def norm(s):
@@ -53,7 +68,8 @@ def normalize(row):
     address=" ".join(filter(None,[val(row,"NO_LOGRADOURO","LOGRADOURO","ENDERECO"),val(row,"NU_ENDERECO","NUMERO","NUMERO_ENDERECO")]))
     return dict(id=cnes or name,name=name,city=city,uf=uf,lat=latitude,lon=longitude,cnes=cnes,address=address,neighborhood=val(row,"NO_BAIRRO","BAIRRO"),phone=val(row,"NU_TELEFONE","TELEFONE","TELEFONE1"),source="CNES")
 def main():
-    req=urllib.request.Request(SRC,headers={"User-Agent":"FilaZero-UBS/1.0 (dados publicos)"})
+    src=find_source()
+    req=urllib.request.Request(src,headers={"User-Agent":"FilaZero-UBS/1.0 (dados publicos)"})
     with urllib.request.urlopen(req,timeout=180) as res: raw=res.read()
     zs=zipfile.ZipFile(io.BytesIO(raw))
     by_uf={uf:[] for uf in VALID}; seen=set(); total=0
