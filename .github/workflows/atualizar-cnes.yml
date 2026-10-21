@@ -1,0 +1,33 @@
+name: Atualizar dados oficiais de UBS (CNES)
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "18 7 * * 3"
+  push:
+    paths:
+      - "scripts/importar_cnes.py"
+      - ".github/workflows/atualizar-cnes.yml"
+permissions:
+  contents: write
+jobs:
+  atualizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Baixar e validar arquivo nacional do Ministério da Saúde
+        run: python scripts/importar_cnes.py
+      - name: Publicar arquivos gerados na branch main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dados/
+          if ! git diff --cached --quiet; then
+            git commit -m "data: atualizar unidades oficiais do CNES"
+            git push
+          fi
