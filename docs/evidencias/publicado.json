@@ -1,0 +1,142 @@
+{
+  "url": "https://fernandoalves049.github.io/filazero-ubs-brasil/",
+  "at": "2026-10-21T13:26:46.521Z",
+  "profiles": [
+    {
+      "profile": "desktop",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "cities": [
+        {
+          "city": "Morrinhos",
+          "uf": "GO",
+          "count": 16,
+          "cards": 16,
+          "markers": 15,
+          "status": "16 unidades do conjunto oficial em Morrinhos/GO. 15 com coordenadas validadas; 1 somente na lista.",
+          "overflow": false,
+          "mapLoaded": true
+        },
+        {
+          "city": "Goiania",
+          "uf": "GO",
+          "count": 107,
+          "cards": 107,
+          "markers": 92,
+          "status": "107 unidades do conjunto oficial em Goiânia/GO. 92 com coordenadas validadas; 15 somente na lista.",
+          "overflow": false,
+          "mapLoaded": true
+        },
+        {
+          "city": "Caldas Novas",
+          "uf": "GO",
+          "count": 22,
+          "cards": 22,
+          "markers": 22,
+          "status": "22 unidades do conjunto oficial em Caldas Novas/GO. 22 com coordenadas validadas; 0 somente na lista.",
+          "overflow": false,
+          "mapLoaded": true
+        },
+        {
+          "city": "Brasilia",
+          "uf": "DF",
+          "count": 212,
+          "cards": 212,
+          "markers": 200,
+          "status": "212 unidades do conjunto oficial em Brasília/DF. 200 com coordenadas validadas; 12 somente na lista.",
+          "overflow": false,
+          "mapLoaded": true
+        },
+        {
+          "city": "Sao Paulo",
+          "uf": "SP",
+          "count": 652,
+          "cards": 652,
+          "markers": 538,
+          "status": "652 unidades do conjunto oficial em São Paulo/SP. 538 com coordenadas validadas; 114 somente na lista.",
+          "overflow": false,
+          "mapLoaded": true
+        }
+      ],
+      "checks": [
+        "Município inexistente não reutiliza resultados anteriores",
+        "Vaga, prevenção de duplicidade, prioridade B/A/C, fila esgotada, persistência, indicadores e reset",
+        "Sem erros JavaScript e sem requisições de escrita/pacientes"
+      ],
+      "errors": []
+    },
+    {
+      "profile": "mobile",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cities": [
+        {
+          "city": "Morrinhos",
+          "uf": "GO",
+          "count": 16,
+          "cards": 16,
+          "markers": 15,
+          "status": "16 unidades do conjunto oficial em Morrinhos/GO. 15 com coordenadas validadas; 1 somente na lista.",
+          "overflow": false,
+          "mapLoaded": true
+        },
+        {
+          "city": "Goiania",
+          "uf": "GO",
+          "count": 107,
+          "cards": 107,
+          "markers": 92,
+          "status": "107 unidades do conjunto oficial em Goiânia/GO. 92 com coordenadas validadas; 15 somente na lista.",
+          "overflow": false,
+          "mapLoaded": true
+        },
+        {
+          "city": "Caldas Novas",
+          "uf": "GO",
+          "count": 22,
+          "cards": 22,
+          "markers": 22,
+          "status": "22 unidades do conjunto oficial em Caldas Novas/GO. 22 com coordenadas validadas; 0 somente na lista.",
+          "overflow": false,
+          "mapLoaded": true
+        },
+        {
+          "city": "Brasilia",
+          "uf": "DF",
+          "count": 212,
+          "cards": 212,
+          "markers": 200,
+          "status": "212 unidades do conjunto oficial em Brasília/DF. 200 com coordenadas validadas; 12 somente na lista.",
+          "overflow": false,
+          "mapLoaded": true
+        },
+        {
+          "city": "Sao Paulo",
+          "uf": "SP",
+          "count": 652,
+          "cards": 652,
+          "markers": 538,
+          "status": "652 unidades do conjunto oficial em São Paulo/SP. 538 com coordenadas validadas; 114 somente na lista.",
+          "overflow": false,
+          "mapLoaded": true
+        }
+      ],
+      "checks": [
+        "Município inexistente não reutiliza resultados anteriores",
+        "Vaga, prevenção de duplicidade, prioridade B/A/C, fila esgotada, persistência, indicadores e reset",
+        "Sem erros JavaScript e sem requisições de escrita/pacientes"
+      ],
+      "errors": []
+    }
+  ],
+  "resilience": [
+    "Mapa bloqueado mantém lista e simulação",
+    "Estado local inválido recuperado",
+    "HTTP 503 explícito, sem dados inventados, nova tentativa recupera"
+  ],
+  "result": "PASS"
+}

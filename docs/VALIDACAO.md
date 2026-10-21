@@ -45,3 +45,20 @@ Interface publicada pelo [run 39607451516](https://github.com/FernandoAlves049/f
 As primeiras capturas foram obtidas durante movimento do mapa; o teste foi reforçado para esperar todos os tiles e o fim do movimento em cada cidade, além de repetir toda a suíte no endereço público após deploy. Os resultados dessa rodada ficam no artefato `evidencias-site-publicado` da execução correspondente.
 
 O navegador remoto da sessão possui WebGL desabilitado: usado para comprovar degradação graciosa, lista e simulação. A renderização de mapa foi testada em Chromium no Actions com renderização por software. Não foi feito teste em aparelho físico.
+
+
+## Conclusão verificada
+
+Em 21/10/2026, a execução [39607839436](https://github.com/FernandoAlves049/filazero-ubs-brasil/actions/runs/39607839436), commit `6e6d31f3df65396e495b7a99ff151f915aae6a9e`, concluiu com **sucesso**: testes Python, dados nacionais, navegador desktop/mobile, implantação e repetição da suíte no **endereço público**. Os dez cenários cidade×viewport retornaram `mapLoaded: true`, contagens e marcadores correspondentes à base, sem overflow horizontal e sem exceções JavaScript.
+
+- [Aplicativo público](https://fernandoalves049.github.io/filazero-ubs-brasil/)
+- [Resultado da suíte no site publicado](evidencias/publicado.json)
+- [Artefato com capturas das cinco cidades e simulação, desktop/mobile](https://github.com/FernandoAlves049/filazero-ubs-brasil/actions/runs/39607839436/artifacts/12348617800)
+- [Captura do mapa de Morrinhos](https://fernandoalves049.github.io/filazero-ubs-brasil/docs/evidencias/desktop-morrinhos.png)
+- [Captura mobile](https://fernandoalves049.github.io/filazero-ubs-brasil/docs/evidencias/mobile-morrinhos.png)
+
+Também foi feita interação manual no navegador remoto com as cinco buscas, liberação de vaga e confirmação para Paciente B. O aviso “Nenhuma mensagem foi enviada” permaneceu visível. Esse navegador sem WebGL manteve listas e simulação operacionais.
+
+**Pendências não bloqueantes:** teste físico Android/iOS/Safari; garantia da precisão de cada endereço exige confirmação pela unidade; nenhuma integração real de agendas/pacientes foi implementada. Há também o fluxo legado `pages build and deployment` herdado nas configurações do repositório, além do workflow customizado; o workflow customizado foi o responsável pela implantação com evidências validada aqui. A exigência de testes antes da publicação vale para o workflow customizado, não constitui proteção de branch contra alterações manuais.
+
+Nenhum erro crítico do aplicativo observado nos cenários executados. Esse resultado não constitui garantia de ausência de defeitos em navegadores ou condições não testados. Artefatos do Actions têm retenção até 19/01/2027; o JSON de resultado fica versionado no repositório.
