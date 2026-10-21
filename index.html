@@ -24,9 +24,9 @@ const geo=await fetch("https://nominatim.openstreetmap.org/search?"+new URLSearc
 if(n-s>1.5||e-w>1.5)throw Error("Área extensa demais para consulta automática. Tente outra cidade.");
 map.setView([Number(g.lat),Number(g.lon)],12);$("status").textContent="Buscando UBS no OpenStreetMap...";
 const pattern="UBS|Unidade B[aá]sica|Posto de Sa[uú]de|USF|ESF|Centro de Sa[uú]de|Sa[uú]de da Fam[ií]lia",bbox="("+s+","+w+","+n+","+e+")";
-const query='[out:json][timeout:25];(nwr["name"~"'+pattern+'",i]'+bbox+';);out center 1000;';
-let out;for(const ep of ["https://overpass.kumi.systems/api/interpreter","https://overpass-api.de/api/interpreter"]){try{const r=await fetch(ep,{method:"POST",body:new URLSearchParams({data:query})});if(r.ok){out=await r.json();break}}catch{}}
-if(!out)throw Error("Serviço de mapeamento indisponível. Tente novamente.");
+const query='[out:json][timeout:25];(nwr["amenity"="clinic"]'+bbox+';nwr["healthcare"="centre"]'+bbox+';nwr["healthcare"="clinic"]'+bbox+';nwr["name"~"'+pattern+'",i]'+bbox+';);out center 1000;';
+let out;for(const ep of ["https://overpass.private.coffee/api/interpreter","https://overpass.nchc.org.tw/api/interpreter","https://overpass-api.de/api/interpreter"]){try{const url=ep+"?data="+encodeURIComponent(query);const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),14000);try{const r=await fetch(url,{signal:controller.signal});if(r.ok){out=await r.json();break}}finally{clearTimeout(timeout)}}catch{}}
+if(!out)throw Error("Os servidores comunitários estão indisponíveis no momento. O mapa base funciona; tente novamente depois. A próxima etapa será importar os dados oficiais do CNES.");
 const matcher=/\b(ubs|usf|esf)\b|unidade b[aá]sica|posto de sa[uú]de|centro de sa[uú]de|sa[uú]de da fam[ií]lia/i;
 units=(out.elements||[]).map(item=>{const t=item.tags||{};return {name:t.name||"",lat:item.lat??item.center?.lat,lon:item.lon??item.center?.lon,address:[t["addr:street"],t["addr:housenumber"],t["addr:suburb"]].filter(Boolean).join(", "),phone:t.phone||t["contact:phone"]||"",cnes:t["ref:CNES"]||t.cnes||""}}).filter(x=>matcher.test(x.name)&&Number.isFinite(Number(x.lat))&&Number.isFinite(Number(x.lon)));
 units.sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));$("count").textContent=units.length;$("status").textContent=units.length+" unidade(s) encontradas. O cadastro colaborativo pode estar incompleto.";const select=$("selectedunit");select.innerHTML='<option>UBS demonstrativa</option>';
