@@ -3,30 +3,60 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  workflow_run:
+    workflows: ['Atualizar dados oficiais de UBS (CNES)']
+    types: [completed]
+    branches: [main]
 permissions:
   contents: read
   pages: write
   id-token: write
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   deploy:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - name: Baixar arquivos
-        uses: actions/checkout@v4
-      - name: Configurar Pages
-        uses: actions/configure-pages@v5
+      - uses: actions/checkout@v4
         with:
-          enablement: true
-      - name: Publicar arquivos estáticos
-        uses: actions/upload-pages-artifact@v3
+          ref: main
+      - uses: actions/setup-python@v5
         with:
-          path: .
-      - name: Implantar GitHub Pages
-        id: deployment
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validar dados e código
+        run: |
+          python -m unittest discover -s tests -p 'test_*.py' -v
+          python scripts/validar_dados.py
+          node --check assets/app.js
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Testar navegador desktop e mobile
+        run: |
+          python -m http.server 8000 &
+          npm test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evidencias-navegador
+          path: docs/evidencias/
+      - uses: actions/configure-pages@v5
+      - name: Preparar somente arquivos públicos
+        run: |
+          mkdir -p _site
+          cp index.html _site/
+          cp -r assets dados docs _site/
+          cp README.md _site/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
         uses: actions/deploy-pages@v4

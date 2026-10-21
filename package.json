@@ -1,0 +1,1 @@
+{"name":"filazero-ubs-brasil","private":true,"version":"2.0.0","scripts":{"test":"node tests/browser.cjs"},"devDependencies":{"playwright":"1.51.1"}}
