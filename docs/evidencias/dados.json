@@ -1,7 +1,7 @@
 {
-  "imported_at": "2026-10-21T13:21:26.408560+00:00",
-  "sha256": "3de65c355824d6d1bcb54f3d91ec0a3113f219a628c5a2e11807b0e051264a6e",
-  "total": 48024,
+  "imported_at": "2026-11-18T16:29:48.618334+00:00",
+  "sha256": "24c7463b4cb07231446dbfa29d8df7d41f98182ddac6508cb4cc925752ac1a14",
+  "total": 48052,
   "cities": [
     {
       "city": "Morrinhos",
@@ -38,9 +38,9 @@
     {
       "city": "São Paulo",
       "uf": "SP",
-      "count": 652,
+      "count": 653,
       "mapped": 538,
-      "list_only": 114,
+      "list_only": 115,
       "example_cnes": "5576989"
     }
   ]
